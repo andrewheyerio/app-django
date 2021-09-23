@@ -2,6 +2,7 @@ from django.contrib.auth.base_user import BaseUserManager
 from django.contrib.auth.models import AbstractUser
 # from django.contrib.auth.models import EmptyManager
 
+
 from django.db import models
 
 
@@ -55,6 +56,14 @@ class User(AbstractUser):
 
     objects = UserManager()
 
+    @property
+    def name(self):
+        return self.first_name + " " + self.last_name
+
+    @property
+    def revenue(self):
+        orders = Order.objects.filter(user=self.pk, complete=True)
+        return sum(order.ambassador_revenue for order in orders)
 
 class Product(models.Model):
     title = models.CharField(max_length=255)
@@ -86,6 +95,15 @@ class Order(models.Model):
     complete = models.BooleanField(default=False)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
+
+    @property
+    def name(self):
+        return self.first_name + " " + self.last_name
+
+    @property
+    def ambassador_revenue(self):
+        items = OrderItem.objects.filter(order=self.pk)
+        return sum(item.ambassador_revenue for item in items)
 
 
 class OrderItem(models.Model):

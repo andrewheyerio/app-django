@@ -35,23 +35,25 @@ class LoginAPIView(APIView):
         # filtering, and checking the password
         user = User.objects.filter(email=email).first()
 
-        # first we try to find the user based on their email
+        # If the user cannot be found based on the email we raise an error
         if user is None:
             raise exceptions.AuthenticationFailed("User not found")
 
-        # If successful use the parent method to check the password
+        # If the user is found, we verify the password using UserModel super methods
         if not user.check_password(password):
             raise exceptions.AuthenticationFailed("Incorrect Password!")
 
-        # Here we can define two different "scopes" which allow us to identify if the
-        # request is either an ambassador or and admin or whatever ambiguous identifier.
+        # We create an attribute called scope to segregate two different user groups
         scope = 'ambassador' if 'api/ambassador' in request.path else 'admin'
 
-        # If the password is also correct, generate an authentication token
+        # Using the user ID and the URL the request is coming from, we create an authentication token
         token = JWTAuthentication.generate_jwt(user.id, scope)
 
-        # setting the jwt key/value as a cookie prevents this value from reaching
-        # the frontend to further secure the authentication
+        # If the user is registered as an ambassador we cannot authenticate them for the admin URI's
+        if user.is_ambassador and scope == 'admin':
+            raise exceptions.AuthenticationFailed("This account is registeres as an ambassador, please")
+
+        # We create a response based off the info obtained above
         response = Response()
         response.set_cookie(key='jwt', value=token, httponly=True)
         response.data = {
@@ -61,12 +63,19 @@ class LoginAPIView(APIView):
         return response
 
 
+# UserAPIView provides a resource for retrieving user information
 class UserAPIView(APIView):
     authentication_classes = [JWTAuthentication]
     permission_classes = [IsAuthenticated]
 
     def get(self, request):
-        return Response(UserSerializer(request.user).data)
+        user = request.user
+        data = UserSerializer(user).data
+
+        if 'api/ambassador' in request.path:
+            data['revenue'] = user.revenue
+
+        return Response(data)
 
 
 class LogoutAPIView(APIView):
